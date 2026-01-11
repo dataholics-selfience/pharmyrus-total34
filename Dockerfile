@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Copy requirements FIRST (better Docker cache)
 COPY requirements.txt .
 
 # Install Python dependencies
@@ -19,21 +19,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install chromium
 RUN playwright install-deps chromium
 
-# Copy application files
+# Copy main application
 COPY main_v30.3_PREDICTIVE.py main.py
+
+# Copy predictive layer (v30.3 NEW)
 COPY predictive_layer.py .
 COPY applicant_learning.py .
 COPY applicant_database.json .
+
+# Copy existing crawlers (v30.2 - REQUIRED)
 COPY google_patents_crawler.py .
 COPY inpi_crawler.py .
 COPY merge_logic.py .
 COPY patent_cliff.py .
-
-# Copy WIPO crawler if exists (optional)
-COPY wipo_crawler.py . 2>/dev/null || echo "WIPO crawler not found, skipping..."
-
-# Copy Celery if exists (optional)
-COPY celery_app.py . 2>/dev/null || echo "Celery app not found, skipping..."
 
 # Expose port
 EXPOSE 8000
