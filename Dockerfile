@@ -1,31 +1,46 @@
-FROM mcr.microsoft.com/playwright/python:v1.48.0-jammy
+# Pharmyrus v30.3-PREDICTIVE Dockerfile
+FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy ALL application files
-COPY main.py .
+# Install Playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps chromium
+
+# Copy application files
+COPY main_v30.3_PREDICTIVE.py main.py
+COPY predictive_layer.py .
+COPY applicant_learning.py .
+COPY applicant_database.json .
 COPY google_patents_crawler.py .
 COPY inpi_crawler.py .
-COPY wipo_crawler.py .
-COPY family_resolver.py .
-COPY materialization.py .
 COPY merge_logic.py .
 COPY patent_cliff.py .
-COPY celery_app.py .
-COPY tasks.py .
 
-# Railway uses PORT env variable
-ENV PORT=8080
+# Copy WIPO crawler if exists (optional)
+COPY wipo_crawler.py . 2>/dev/null || echo "WIPO crawler not found, skipping..."
+
+# Copy Celery if exists (optional)
+COPY celery_app.py . 2>/dev/null || echo "Celery app not found, skipping..."
+
+# Expose port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Run FastAPI + Celery Worker in same container
-# Railway sets PORT automatically
-CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} & celery -A celery_app worker --loglevel=info --concurrency=1 -I tasks"
-
+# Run application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
